@@ -1,0 +1,74 @@
+
+           ________        .__ __   .__ 
+           \_____  \  __ __|__|  | _|__|
+  -------   /  / \  \|  |  \  |  |/ /  |  -------
+  -------  /   \_/.  \  |  /  |    <|  |  -------
+           \_____\ \_/____/|__|__|_ \__|
+                  \__>             \/   
+
+
+YET ANOTHER WIKI?
+-----------------
+Yes!
+
+There are already a lot of Wikis in Perl:
+
+    * Kwiki — not really maintained, not stable
+    * twiki — big, heavy, complicated
+    * mojomojo — catalyst based. More than 200 Perl modules of dependencies
+    * socialtext — commercial
+
+We fell the Perl community is lacking a simple yet powerful
+wiki. Something like DokuWiki. If you ask why not to use DokuWiki, we
+would love to, but having Perl projects hosted in a PHP Wiki is not
+positive.
+
+
+INSTALLATION
+------------
+
+To install this module, run the following commands:
+
+	perl Makefile.PL
+	make
+	make test
+	make install
+
+
+SUPPORT AND DOCUMENTATION
+-------------------------
+
+After installing, you can find documentation for this module with the
+perldoc command.
+
+    perldoc Quiki
+
+You can also look for information at:
+
+    Quiki official wiki (yeah, quiki)
+        http://quiki.perl-hackers.net/
+
+    RT, CPAN's request tracker
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Quiki
+
+    AnnoCPAN, Annotated CPAN documentation
+        http://annocpan.org/dist/Quiki
+
+    CPAN Ratings
+        http://cpanratings.perl.org/d/Quiki
+
+    Search CPAN
+        http://search.cpan.org/dist/Quiki/
+
+
+COPYRIGHT AND LICENCE
+---------------------
+
+Copyright (C) 2009 Alberto Simoes and Nuno Carvalho
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
+

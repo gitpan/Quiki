@@ -1,0 +1,38 @@
+--- #YAML:1.0
+name:               Quiki
+version:            0.01_1
+abstract:           A lightweight Wiki in Perl
+author:
+    - Alberto Simoes and Nuno Carvalho <ambs@cpan.org and smash@cpan.org>
+license:            perl
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+build_requires:
+    ExtUtils::MakeMaker:  0
+requires:
+    CGI:                  0
+    CGI::Session:         0
+    DBD::SQLite:          0
+    DBI:                  0
+    Digest::MD5:          0
+    Email::Sender:        0
+    Email::Simple::Creator:  0
+    File::Slurp:          0
+    HTML::Template::Pro:  0
+    MIME::Base64:         0
+    Regexp::Common:       2.122
+    Test::More:           0
+    Text::Diff:           0
+    Text::Password::Pronounceable:  0.28
+    Text::Patch:          0
+    URI::Escape:          0
+    YAML::Any:            0
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.55_02
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4

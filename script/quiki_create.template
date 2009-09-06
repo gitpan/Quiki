@@ -1,0 +1,143 @@
+#!/usr/bin/perl -s
+
+use strict;
+use warnings;
+use Cwd 'abs_path';
+use File::Copy;
+use File::Basename;
+use File::Path qw.make_path.;
+use MIME::Base64;
+use Digest::MD5 'md5_hex';
+use DBI;
+
+our ($force, $email);
+
+my $path = shift || '.';
+
+(!-d $path) and warn "$path not found" and exit;
+
+print "Creating files:\n";
+create_files_from_data($path);
+
+print "Creating user database... ";
+if (!-f "$path/data/users.sqlite") {
+    if (!$email) {
+        print "\n  Enter wiki administrator email address: ";
+        chomp($email = <STDIN>);
+    }
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$path/data/users.sqlite","","");
+    $dbh->do("CREATE TABLE auth (username PRIMARY KEY, password, email);");
+
+    my $sth = $dbh->prepare("INSERT INTO auth VALUES (?, ?, ?);");
+    $sth->execute("admin", md5_hex("admin"), $email);
+    print "done.\n";
+} else {
+    print "skipped.\n";
+}
+
+
+print "Setting up permissions... ";
+chmod 0755, "$path/quiki.cgi";
+chmod 07777, "$path/data/"; # +t u+s g+s
+chmod 0777, "$path/data/content";
+chmod 0777, "$path/data/content/index";
+chmod 0777, "$path/data/users.sqlite";
+
+my @dirs = qw.locks meta revs images.;
+for my $d (@dirs) {
+    (!-d "$path/data/$d")  and mkdir "$path/data/$d";
+    chmod 0777, "$path/data/$d";
+}
+
+print "done.\n";
+
+
+sub create_files_from_data {
+    my $path = shift;
+    my $file = undef;
+    my $base64 = "";
+    my $mode = undef;
+    while(<DATA>) {
+        if (/^(!!|)----(.+)----(BIN|)\n$/) {
+            if ($file) {
+                if ($mode) {
+                    $mode = undef;
+                    binmode $file;
+                    print {$file} decode_base64($base64);
+                    $base64 = undef;
+                }
+                print " created.\n";
+                close $file;
+            }
+            my $f = $2;
+            if ($force || !-f "$path/$f" || $1) {
+                print " - $f...";
+                my $folder = dirname(abs_path($path) . "/$f");
+                (!-d $folder) && (make_path($folder));
+                open $file, ">$path/$f" or die;
+
+                $mode = "BIN" if ($3 eq "BIN");
+            }
+            else {
+                print " - $f... skipped.\n";
+                $file = undef;
+            }
+        }
+        elsif ($file) {
+            if ($mode) {
+                $base64.=$_;
+            }
+            else {
+                print {$file} $_;
+            }
+        }
+    }
+    if ($file) {
+        if ($mode) {
+            $mode = undef;
+            binmode $file;
+            print {$file} decode_base64($base64);
+            $base64 = undef;
+        }
+        print " created.\n";
+        close $file;
+    }
+}
+
+
+=head1 NAME
+
+quiki_create.pl - Deploys a Quiki!
+
+=head1 SYNOPSIS
+
+  quiki_create.pl /path/to/your/new/quiki/apache/dir
+
+=head1 DESCRIPTION
+
+Creates the needed files for a Quiki installation.
+
+=head1 SEE ALSO
+
+Quiki
+
+=head1 AUTHOR
+
+Alberto Simões, E<lt>ambs@cpan.orgE<gt>
+Nuno Carvalho, E<lt>smash@cpan.orgE<gt>
+
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2009 Alberto Simoes and Nuno Carvalho.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
+
+=cut
+
+
+__DATA__
