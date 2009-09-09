@@ -44,7 +44,7 @@ sub check_in {
     # XXX nasty check, needed for diff
     $contents .= "\n" unless ($contents =~ m/\n$/);
 
-    my $rev = $Quiki->{meta}{rev};
+    my $rev = $Quiki->{meta}{rev} || 0;
 
     if ($rev > 0) {
         my $current = slurp "data/content/$node";
@@ -74,7 +74,7 @@ sub check_out {
     my $cur_rev  = $Quiki->{meta}{rev};
     my $content = slurp "data/content/$node";
 
-    while ($rev < $cur_rev--) {
+    while (($rev || 0) < $cur_rev--) {
         my $patch = slurp "data/revs/$node.$cur_rev";
 
         $content = patch($content, $patch, {STYLE=>'Unified'});

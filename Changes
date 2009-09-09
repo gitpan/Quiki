@@ -1,8 +1,16 @@
 Revision history for Quiki
 
-0.01_1    Sun Sep  6 14:22:48 WEST 2009
+0.01_2 Wed Sep  9 12:30:09 WEST 2009
+        This second beta pre-release features:
+         - First templating structure;
+         - Gravatar support on user profile;
+         - Attach support / mimetype guessing;
+         - Inline external image inclusion;
+         - Inline internal attach inclusion;
+
+0.01_1 Sun Sep  6 14:22:48 WEST 2009
         First version, released on an unsuspecting world full of other wikis.
-        This release features:
+        This pre-release features:
          - installation script;
          - Basic authentication;
          - Basic Wiki formatter:

@@ -1,0 +1,43 @@
+<tmpl_if NAME='PREVIEW'>
+  <div class='quiki_preview'>
+    <h4>Preview</h4>
+    <hr />
+    <tmpl_var CONTENT>
+  </div>
+</tmpl_if>
+
+<script type="text/javascript">
+  $(document).ready(function(){ 
+    $('textarea.resizable:not(.processed)').TextAreaResizer(); 
+  });
+</script>
+
+<form method="post" enctype="multipart/form-data">
+  <textarea id="editfield" name="text"  rows="30" cols="80" class="resizable"><tmpl_var TEXT></textarea>
+  <input type="hidden" name="node" value="<tmpl_var WIKINODE>" />
+  <input type="hidden" name="action" value="save" />
+
+  <tmpl_if name=ATTACHS>
+    <div id="quiki_attach_list">
+      <h3>Node attachments:</h3>
+      <table>
+        <tr>
+          <th></th>
+          <th>Identifier</th>
+          <th>Mime-type</th>
+          <th>Description</th>
+        </tr>
+        <tmpl_loop name=ATTACHS>
+          <tr>
+            <td <img src="images/paste.png"
+                     onClick="insertAtCursor('editfield','{{wiki:<tmpl_var ID>}}')"
+                     alt="Copy to Textarea"/> </td>
+            <td> <a target="_new"
+                    href="data/attach/<tmpl_var name="WIKINODE">/<tmpl_var ID>"><tmpl_var ID></a> </td>
+            <td> <tmpl_var MIME ></td>
+            <td> <tmpl_var DESC ></td>
+          </tr>
+        </tmpl_loop>
+      </table>
+    </div>
+  </tmpl_if>

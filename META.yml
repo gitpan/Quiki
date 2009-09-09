@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Quiki
-version:            0.01_1
+version:            0.01_2
 abstract:           A lightweight Wiki in Perl
 author:
     - Alberto Simoes and Nuno Carvalho <ambs@cpan.org and smash@cpan.org>
@@ -18,7 +18,9 @@ requires:
     Digest::MD5:          0
     Email::Sender:        0
     Email::Simple::Creator:  0
+    File::MMagic:         0
     File::Slurp:          0
+    Gravatar::URL:        0
     HTML::Template::Pro:  0
     MIME::Base64:         0
     Regexp::Common:       2.122

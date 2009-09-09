@@ -209,6 +209,7 @@ sub _inlines {
        qr/\[\[([^\]|]+)\|([^\]|]+)\]\]/         => sub {
            a({-href=>"$script?node=".uri_escape($1) }, _inlines($Quiki, $2))
        },
+
        ## ** foo **
        qr/\*\* ((?:\\\*|[^*]|\*[^*])+) \*\*/x   => sub { b(_inlines($Quiki, $1)) },
        ## __ foo __
@@ -217,8 +218,20 @@ sub _inlines {
        qr/\/\/ ((?:\\\/|[^\/]|\/[^\/])+) \/\//x => sub { i(_inlines($Quiki, $1)) },
        ## '' foo ''
        qr/'' ((?:\\'|[^']|'[^'])+) ''/x => sub { tt(_inlines($Quiki, $1)) },
+
+       ## {{wiki: foo | desc }}
+       qr/\{\{wiki:([^}|]+)\|([^}]+)\}\}/        => sub { _inline_doc($Quiki, $1,$2) },
+       ## {{wiki: foo  }}
+       qr/\{\{wiki:([^}]+)\}\}/                  => sub { _inline_doc($Quiki, $1,$1) },
+
+       ## {{ foo | desc  }}
+       qr/\{\{([^}|]+)\|([^}]+)\}\}/        => sub { img({alt => $2, src => $1}) },
+       ## {{ foo  }}
+       qr/\{\{([^}]+)\}\}/                  => sub { img({alt => $1, src => $1}) },
+
        ## urls que nao sigam aspas
        qr/(?<!")$RE{URI}{-keep}/                => sub { a({-href=>$1}, $1) },
+
       );
 
     while (@inline) {
@@ -228,6 +241,21 @@ sub _inlines {
     }
 
     return _expand_entities($chunk);
+}
+
+sub _inline_doc {
+    my ($quiki, $id, $desc) = @_;
+    my $node = $quiki->{node};
+    my $mm = new File::MMagic;
+    my $mime = $mm->checktype_filename("data/attach/$node/$id");
+    if ($mime =~ /^image/) {
+        img({-alt=>$desc, -src=>"data/attach/$node/$id"})
+    }
+    else {
+        a({-href=>"data/attach/$node/$id", -target=>"_new"},
+          img({-alt => "Attachment",
+               -src => "images/document.png"}), $desc)
+    }
 }
 
 sub _unbackslash {

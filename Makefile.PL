@@ -32,7 +32,9 @@ WriteMakefile(
                   'Text::Patch'    => 0,
                   'Text::Diff'     => 0,
                   'Email::Simple::Creator' => 0,
+                  'Gravatar::URL'  => 0,
                   'HTML::Template::Pro' => 0,
+                  'File::MMagic'   => 0,
 
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

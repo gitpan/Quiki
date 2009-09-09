@@ -10,6 +10,9 @@ use Quiki::Pages;
 use CGI qw/:standard *div/;
 use CGI::Session;
 use HTML::Template::Pro;
+use Gravatar::URL;
+use File::MMagic;
+use File::Slurp 'slurp';
 
 use warnings;
 use strict;
@@ -20,11 +23,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.01_1
+Version 0.01_2
 
 =cut
 
-our $VERSION = '0.01_1';
+our $VERSION = '0.01_2';
 
 
 =head1 SYNOPSIS
@@ -55,11 +58,16 @@ sub new {
     my %conf = (
                 name  => 'defaultName',
                 index => 'index', # index node
+                protocol => 'http', # support https?
                );
     $self = {%conf, %args};
 
     $self->{SCRIPT_NAME} = $ENV{SCRIPT_NAME};
     $self->{SERVER_NAME} = $ENV{SERVER_NAME};
+
+    $self->{DOCROOT} = sprintf("%s://%s%s",
+                               $self->{protocol}, $self->{SERVER_NAME}, $ENV{SCRIPT_NAME});
+    $self->{DOCROOT} =~ s!/[^/]+$!/!;
 
     return bless $self, $class;
 }
@@ -74,10 +82,12 @@ sub run {
     my $node   = param('node')   || $self->{index};
     my $action = param('action') || '';
 
-    $self->{meta} = Quiki::Meta::get($node);
-
     # XXX -- temos de proteger mais coisas, possivelmente
     $node =~ s/\s/_/g;
+
+    $self->{meta} = Quiki::Meta::get($node);
+    $self->{node} = $node;
+
 
     if ($action eq 'save_profile' && param('submit') =~ /^Save/) {
         if (param("new_password1") && (param("new_password1") ne param("new_password2"))) {
@@ -93,9 +103,35 @@ sub run {
     }
 
     # XXX
+    if ($action eq "upload") {
+        my $count = 0;
+        for (1..3) {
+            if (param("filename$_") && param("name$_")) {
+                my $id = param("name$_");
+                my $path = "data/attach/$node";
+                (! -f $path) and mkdir $path and chown 0777, $path;
+                open OUT, ">", "$path/$id" or die "Can't create out file: $!";
+                my $filename = param("filename$_");
+                my ($buffer, $bytesread);
+                while ($bytesread = read($filename, $buffer, 1024)) {
+                    print OUT $buffer
+                }
+                close OUT;
+                $count++;
+                if (param("description$_")) {
+                    open OUT, ">", "$path/_desc_$id" or die "Can't create out file: $!";
+                    print OUT param("description$_");
+                    close OUT;
+                }
+            }
+        }
+        $self->{session}->param('msg', "$count file(s) uploaded.");
+    }
+
+    # XXX
     if ($action eq 'register' && param('submit') eq "Register") {
         my $username = param('username') || '';
-        my $email    = param('email') || '';
+        my $email    = param('email')    || '';
         if ($username and $email and $email =~ m/\@/) { # XXX -- fix regexp :D
             if (Quiki::Users->exists($username)) {
                 $self->{session}->param('msg',
@@ -172,15 +208,13 @@ sub run {
     	$content = Quiki::Pages->check_out($self,$node,$self->{rev});
     }
 
-    # save meta data
-    Quiki::Meta::set($node, $self->{meta});
 
     my $cookie = cookie('QuikiSID' => $self->{session}->id);
     print header(-charset=>'UTF-8',-cookie=>$cookie);
 
     my @trace;
     $self->{session}->param('trace') and @trace = @{$self->{session}->param('trace')};
-    if (@trace && $trace[-1] ne $node) {
+    if ($trace[-1] ne $node) {
         push @trace, $node;
         @trace > 5 and shift @trace;
         $self->{session}->param('trace',\@trace);
@@ -197,270 +231,129 @@ sub run {
         Quiki::Pages->unlock($node);
     }
 
-    my $theme = $self->{theme} || 'default';
-    my $template = HTML::Template::Pro->new(filename => "themes/$theme/header.tmpl",
-                                            case_sensitive => 1);
+    my $username = ($self->{session}->param('authenticated')?
+                    $self->{session}->param('username'):"guest");
+    my $email    = Quiki::Users->email($username);
+    my $theme    = $self->{theme} || 'default';
+
+    my $template = HTML::Template::Pro->new(filename => "themes/$theme/wrapper.tmpl",
+                                            global_vars => 1);
     $template->param(WIKINAME    => $self->{name},
-                     USERNAME    => ($self->{session}->param('authenticated')?
-                                     $self->{session}->param('username'):"guest"),
+                     USERNAME    => $username,
                      WIKINODE    => $node,
                      WIKISCRIPT  => $self->{SCRIPT_NAME},
                      MAINNODE    => $self->{index},
+                     ACTION      => $action,
+                     AUTHENTICATED => $self->{session}->param('authenticated'),
+                     LAST_REV    => (($self->{rev} || 0) == ($self->{meta}{rev} || 0)),
+                     REV         => $self->{rev},
                      BREADCUMBS  => $breadcumbs,
-                     PROFILEBOX  => ($action eq 'profile_page')?$self->_profile_box():"",
-                     LOGINBOX    => ($action eq 'login_page') ? _login_box():"",
-                     REGISTERBOX => ($action eq 'register_page') ? _register_box():"",
-                     DOCROOT     => "../",
+                     DOCROOT     => $self->{DOCROOT},
+                     PREVIEW     => $preview,
                     );
-    $template->output(print_to => \*STDOUT);
 
+    if ($action eq 'profile_page') {
+        $template->param(EMAIL       => $email,
+                         GRAVATAR    => gravatar_url(email => $email));
+    }
 
     if ($action eq 'edit' && 
         ($preview || !Quiki::Pages->locked($node, $self->{sid}))) {
         if ($preview) {
             my $text = param('text') // '';
-            print start_div({-class=>"quiki_preview"}),
-              h4('Preview'),
-                hr,
-                  Quiki::Formatter::format($self, $text),
-                      hr,
-                        end_div; # end quicki_preview <div>
+            $template->param(CONTENT=>Quiki::Formatter::format($self, $text));
         }
         else {
             Quiki::Pages->lock($node, $self->{sid});
         }
 
-        print script({-type=>'text/javascript'},
-                     q!$(document).ready(function() { $('textarea.resizable:not(.processed)').TextAreaResizer(); });!);
-        print start_form(-method=>'post'),
-          textarea(-name => 'text',
-                   -default => $content,
-                   -class => 'resizable',
-                   -rows => 30, -columns => 80),
-                     hidden(-name => 'node', -value => $node, -override => 1),
-                       hidden(-name => 'action', -value => 'save', -override => 10);
-        #submit('submit', 'save'),
-        #end_form;
+        $template->param(TEXT=>$content);
+
+        if (-d "data/attach/$node") {
+            my @attachs;
+            opendir DIR, "data/attach/$node";
+            my $mm = new File::MMagic;
+            my %desc;
+            for my $f (sort { lc($a) <=> lc($b)  } readdir(DIR)) {
+                next if $f =~ /^\.\.?$/;
+                if ($f =~ m!_desc_(.*)!) {
+                    $desc{$1} = slurp "data/attach/$node/$f";
+                }
+                else {
+                    my $mime = $mm->checktype_filename("data/attach/$node/$f");
+                    push @attachs, { ID => $f, MIME => $mime };
+                }
+            }
+            for (@attachs) {
+                $_->{DESC} = $desc{$_->{ID}}
+            }
+            $template->param(ATTACHS => \@attachs);
+        }
     }
     elsif ($action eq 'index') {
         opendir(DIR,'data/content/');
-        my @pages = sort readdir(DIR);
-        for my $f (@pages) {
+        my @pages;
+        for my $f (sort { lc($a) <=> lc($b) } readdir(DIR)) {
             unless ($f=~/^\./) {
-                print a({-href=>"$self->{SCRIPT_NAME}?node=$f"}, $f), br;
+                push @pages, { link => a({-href=>"$self->{SCRIPT_NAME}?node=$f"}, $f)};
             }
         }
         closedir(DIR);
+        $template->param(PAGES=>\@pages);
     }
     elsif ($action eq 'diff') {
-		my $target = param('target') || 0;
-		$content = Quiki::Pages->calc_diff($self,$node,$self->{rev},$target);
-		print "<pre>",
-			$content,
-				"</pre>";
-	}
-    else {
-        print Quiki::Formatter::format($self, $content);
+        my $target = param('target') || 0;
+        $template->param(CONTENT=>Quiki::Pages->calc_diff($self,$node,$self->{rev},$target));
     }
+    else {
+        $template->param(CONTENT=>Quiki::Formatter::format($self, $content));
+    }
+
 
     # handle meta data
     if ($action eq 'save' or $action eq 'rollback') {
-        $self->{meta}->{last_update_by} = $self->{session}->param('username');
-        $self->{meta}->{last_updated_in} = `date`; # XXX -- more legible?
+        $self->{meta}{last_update_by} = $self->{session}->param('username');
+        $self->{meta}{last_updated_in} = `date`; # XXX -- more legible?
         chomp $self->{meta}->{last_updated_in};
     }
 
     unless ($action eq 'edit') {
-        print div({-class=>"quiki_meta"}),
-          "Last edited by $self->{meta}{last_update_by}, in $self->{meta}{last_updated_in}",
-            br;
+        my $L_META = sprintf("Last edited by %s, in %s",
+                             $self->{meta}{last_update_by}  || "",
+                             $self->{meta}{last_updated_in} || "");
+        my $R_META = sprintf("Revision: %s | Older: ",
+                             $self->{meta}{rev} || "");
 
-        if ($self->{meta}{rev}) {
-            print "REVISION: $self->{meta}{rev} (";
+        if ($self->{meta}{rev} > 1) {
             for (my $i=$self->{meta}{rev} ; $i>0 ; $i--) {
-                print a({-href=>"$self->{SCRIPT_NAME}?node=$node&rev=$i"}, $i), ' ';
+                $R_META .= a({-href=>"$self->{SCRIPT_NAME}?node=$node&rev=$i"}, $i).' ';
+            }
+            $R_META .= start_form(-method => 'post',
+                                  -action => $self->{SCRIPT_NAME},
+                                  -style  => 'display: inline;');
+            $R_META .= hidden(-name => 'node', -value => $node, -override => 1);
+            $R_META .= hidden(-name => 'action', -value => 'diff', -override => 1);
+            $R_META .= submit(-name => 'submit', -value => 'Calc diff with: ', -override => 1);
+            $R_META .= "<select name='target'>";
+            for (my $i=$self->{meta}{rev}-1 ; $i>0 ; $i--) {
+                $R_META .= "<option value='$i'>revision $i</option>";
             }
         }
-        print ")", 
-		  start_form(-method=>'post',-action=>$self->{SCRIPT_NAME}),
-			hidden(-name => 'node', -value => $node, -override => 1),
-			  hidden(-name => 'action', -value => 'diff', -override => 1),
-				submit(-name => 'submit', -value => 'Calc diff with: ', -override => 1),
-				  "<select name='target'>";
-		for (my $i=$self->{meta}{rev} ; $i>0 ; $i--) {
-			print "<option value='$i'>revision $i</option>";
-		}
-		print "</select>",
-		  end_form,
-			end_div; # end quiki_meta <div>
+        $R_META .= "</select></form>";
+        $template->param(L_META=>$L_META);
+        $template->param(R_META=>$R_META);
     }
 
-    print end_div; # end quiki_body <div>
-
-
-    $self->_render_menu_bar($node, $action);
-
-    print end_html;
-}
-
-sub _show_msg {
-    my ($self, $string) = @_;
-print<<"HTML";
-<script type="text/javascript">
-    \$(document).ready(function(){
-            \$.gritter.add({
-                title: 'Info!',
-                text: '$string',
-            });
-    });
-</script>
-<noscript><b>Info! $string</b></noscript>
-HTML
-}
-
-sub _render_menu_bar {
-    my ($self, $node, $action) = @_;
-
-    print( start_div({-class=>"quiki_menu_bar"}),
-           start_div({-class=>"quiki_menu_bar_left"}));
-
-    given ($action) {
-        when (!/edit/) {
-            if ($self->{session}->param('authenticated')) {
-                print start_form(-method=>'post',-action=>$self->{SCRIPT_NAME}),
-                  hidden('node',$node);
-                if ($self->{rev} == $self->{meta}{rev}) {
-                    print hidden(-name => 'action', -value => 'edit', -override => 1),
-					  submit(-name => 'submit', -value => 'Edit this page', -override => 1);
-                }
-                else {
-                    print hidden(-name => 'action', -value => 'rollback', -override => 1),
-					  hidden(-name => 'rev', -value => $self->{rev}, -override => 1),
-						submit(-name => 'submit', -value => 'Rollback to this version', -override => 1);
-                }
-                print end_form;
-                print '&nbsp;&nbsp;|&nbsp;&nbsp;';
-                print start_form(-method=>'post'),
-                  submit('submit', 'Create new page'),
-                    '&nbsp;',
-                      textfield(-name=>'node', -value=>'<name>', -size=>8, -override => 1),
-                        hidden(-name => 'action', -value => 'create', -override => 1),
-                          end_form;
-            }
-        }
-
-        when (/edit/) {
-            print submit(-name => 'submit', -value => 'Cancel', -override => 1),
-              '&nbsp;&nbsp;|&nbsp;&nbsp;',
-                submit(-name => 'submit', -value => 'Preview', -override => 1),
-                  '&nbsp;&nbsp;|&nbsp;&nbsp;',
-                    submit(-name => 'submit', -value => 'Save', -override => 1),
-                      end_form;
-        }
-    }
-    print( end_div,  # end menu_bar_left <div>
-           start_div({-class=>"quiki_menu_bar_right"}));
-
-    ## Index button
-    print start_form(-method=>'post'),
-      hidden(-name => 'action', -value => 'index', -override => 1),
-        submit(-name => 'submit', -value => 'Index', -override => 1),
-          end_form,
-            "&nbsp;&nbsp;|&nbsp;&nbsp;";
-
-    ## Login+Sigup/Profile+Logout buttons
-    if ($self->{session}->param('authenticated')) {
-        print start_form(-method=>'post'),
-          submit('submit', 'Edit Profile'),
-            hidden(-name => 'action', -value => 'profile_page', -override => 1),
-              end_form;
-        print "&nbsp;&nbsp;|&nbsp;&nbsp;";
-        print start_form(-method=>'post'),
-          submit('submit', 'Log out'),
-            hidden(-name => 'action', -value => 'logout', -override => 1),
-              end_form;
-    }
-    else {
-        print start_form(-method=>'post'),
-          hidden(-name => 'action', -value => 'register_page', -override => 1),
-            submit('submit', 'Sign up'),
-              end_form;
-        print "&nbsp;&nbsp;|&nbsp;&nbsp;";
-        print start_form(-method=>'post'),
-          submit('submit', 'Log in'),
-            hidden(-name => 'node', -value => $node, -override => 1),
-              hidden(-name => 'action', -value => 'login_page', -override => 1),
-                end_form;
+    if ($self->{session}->param('msg')) {
+        $template->param(MSG=>$self->{session}->param('msg'));
+        $self->{session}->param('msg','');
     }
 
+    # save meta data
+    Quiki::Meta::set($node, $self->{meta});
 
-    print end_div, # end menu_bar_right <div>
-      start_div({-style=>'clear: both;'}),
-        end_div. # end empty <div>
-          end_div; # end menu_bar <div>
+    $template->output(print_to => \*STDOUT);
 }
-
-sub _float_box {
-    my $html = shift;
-    my $noscript = noscript($html);
-    $html =~ s/"/\\"/g;
-    $html =~ s/\n/ /g;
-    return script({-type=>"text/javascript"},
-                  "\$(document).ready(function(){ \$.floatbox({ content: \"$html\" }); });") .
-                    $noscript;
-}
-
-sub _profile_box {
-    my $self = shift;
-    my $box =  div({-class => 'floatbox_head'}, "Edit Profile");
-    $box .= div({-class => 'floatbox_body'},
-                start_form({-method => "post"}),
-                table({-style=>"margin-left: auto; margin-right: auto"},
-                      Tr(td({-style=>"text-align: right"}, "E-mail: "),
-                         td(textfield(-name => "email",
-                                      -value => Quiki::Users->email($self->{session}->param("username"))))),
-                      Tr(td({-style=>"text-align: right"}, "New Password: "),
-                         td(password_field(-name => "new_password1"))),
-                      Tr(td(["Retype Password: ",
-                             password_field(-name => "new_password2")]))),
-                br, br,
-                hidden(-name=>'action', -value => 'save_profile', -override => 1),
-                submit(-name=>'submit', -value => 'Cancel'),
-                "&nbsp;&nbsp;",
-                submit(-name=>'submit', -value => 'Save Profile'),
-                end_form());
-    return _float_box($box);
-
-}
-
-sub _register_box {
-    my $box = div({-class => 'floatbox_head'}, "Register");
-    $box .= div({-class => 'floatbox_body'},
-                start_form({-method => "post"}),
-                table({-style=>"margin-left: auto; margin-right: auto"},
-                      Tr(td(["Username: ", textfield(-name => "username")])),
-                      Tr(td(["E-mail: ", textfield(-name => "email")]))), br, br,
-                hidden(-name=>'action', -value=>'register', -override => 1),
-                submit(-name=>'submit', -value => 'Cancel'),
-                "&nbsp;&nbsp;",
-                submit(-name=>'submit', -value=>'Register'),
-                end_form());
-    return _float_box($box);
-}
-
-sub _login_box {
-    my $box = div({-class => 'floatbox_head'}, "Log in");
-    $box .= div({-class => 'floatbox_body'},
-                start_form({-method => "post"}),
-                table({-style=>"margin-left: auto; margin-right: auto"},
-                      Tr(td(["Username: ", textfield(-name => "username")])),
-                      Tr(td(["Password: ", password_field(-name => "password")]))), br, br,
-                hidden(-name=>'action', -value=>'login', -override => 1),
-                submit(-name=>'submit', -value=>'Log in'),
-                end_form());
-    return _float_box($box);
-}
-
 
 =head1 SYNTAX
 
@@ -605,7 +498,7 @@ Install the Quiki Perl module
 
 Use the quiki_create Perl script
 
-    $ mkdir /home/quiki
+    $ mkdir /var/www/html/myquiki
     $ quiki_create /var/www/html/myquiki
 
 =item 3
@@ -616,11 +509,11 @@ Sample VirtualHost for Apache2:
 
       <VirtualHost *:80>
          ServerName quiki.server.com
-         DocumentRoot /home/quiki/
+         DocumentRoot /var/www/html/myquiki
          ServerAdmin admin@quiki.server.com
          DirectoryIndex index.html
        
-         <Directory /home/quiki>
+         <Directory /var/www/html/myquiki>
             Options +ExecCGI
             AddHandler cgi-script .cgi
          </Directory>
@@ -692,3 +585,4 @@ See http://dev.perl.org/licenses/ for more information.
 =cut
 
 42; # End of Quiki
+
