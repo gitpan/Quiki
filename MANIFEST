@@ -34,7 +34,6 @@ site/themes/default/header.tmpl
 site/themes/default/body.tmpl
 site/themes/default/edit.tmpl
 site/themes/default/login_page.tmpl
-site/themes/default/main.tmpl
 site/themes/default/menu_bar.tmpl
 site/themes/default/nav_bar.tmpl
 site/themes/default/profile_page.tmpl
@@ -49,4 +48,9 @@ site/js/quiki.js
 site/themes/default/upload_page.tmpl
 site/images/document.png
 site/images/paste.png
+site/images/images.png
+site/images/page.png
+site/images/doc_pdf.png
+site/themes/default/history.tmpl
+site/images/favicon.ico
 META.yml                                 Module meta-data (added by MakeMaker)

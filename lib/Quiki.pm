@@ -23,11 +23,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.01_2
+Version 0.01
 
 =cut
 
-our $VERSION = '0.01_2';
+our $VERSION = '0.01';
 
 
 =head1 SYNOPSIS
@@ -58,15 +58,13 @@ sub new {
     my %conf = (
                 name  => 'defaultName',
                 index => 'index', # index node
-                protocol => 'http', # support https?
                );
     $self = {%conf, %args};
 
     $self->{SCRIPT_NAME} = $ENV{SCRIPT_NAME};
     $self->{SERVER_NAME} = $ENV{SERVER_NAME};
 
-    $self->{DOCROOT} = sprintf("%s://%s%s",
-                               $self->{protocol}, $self->{SERVER_NAME}, $ENV{SCRIPT_NAME});
+    $self->{DOCROOT} = $ENV{SCRIPT_NAME};
     $self->{DOCROOT} =~ s!/[^/]+$!/!;
 
     return bless $self, $class;
@@ -88,10 +86,10 @@ sub run {
     $self->{meta} = Quiki::Meta::get($node);
     $self->{node} = $node;
 
-
     if ($action eq 'save_profile' && param('submit') =~ /^Save/) {
         if (param("new_password1") && (param("new_password1") ne param("new_password2"))) {
             $self->{session}->param('msg', "Passwords do not match. Try again!");
+            $action = 'profile_page';
         }
         else {
             my %data;
@@ -136,6 +134,7 @@ sub run {
             if (Quiki::Users->exists($username)) {
                 $self->{session}->param('msg',
                                         "User name already in use. Please try again!");
+                $action = 'register_page';
             }
             else {
                 Quiki::Users->create($self, $username, $email);
@@ -146,6 +145,7 @@ sub run {
         else {
             $self->{session}->param('msg',
                                     "Sign up failed! Perhaps you forgot to fill in the form?");
+            $action = 'register_page';
         }
     }
 
@@ -174,7 +174,6 @@ sub run {
     # XXX
     ($action eq 'create') and (-f "data/content/$node") and ($action = '');
     if( ($action eq 'create') or !-f "data/content/$node") {
-        #Quiki::Pages -> save($node, "Edit me!");
         Quiki::Pages->check_in($self, $node, "Edit me!");
 	$self->{session}->param('msg',"New node \"$node\" created.");
     }
@@ -188,7 +187,6 @@ sub run {
     if ($action eq 'save' && param("submit") eq "Save") {
         if (Quiki::Pages->locked($node, $self->{sid})) {
             my $text = param('text') // '';
-            #Quiki::Pages->save($node, $text);
             Quiki::Pages->check_in($self, $node, $text);
             Quiki::Pages->unlock($node);
             $self->{session}->param('msg',"Content for \"$node\" updated.");
@@ -200,9 +198,15 @@ sub run {
     # XXX
     my $content;
     $self->{rev} = param('rev') || $self->{meta}{rev};
+	# sanity check revision number
+	if (!($self->{rev} =~ m/\d+/) || $self->{rev}<0 || $self->{rev}>$self->{meta}{rev}) {
+    	$self->{rev} = $self->{meta}{rev};
+		$self->{session}->param('msg','Revision requested not found.');
+	}
     if ($action eq 'rollback') {
         $content = Quiki::Pages->check_out($self,$node,$self->{rev});
         Quiki::Pages->check_in($self, $node, $content);
+        $self->{rev} = $self->{meta}{rev};
     }
     else {
     	$content = Quiki::Pages->check_out($self,$node,$self->{rev});
@@ -214,6 +218,7 @@ sub run {
 
     my @trace;
     $self->{session}->param('trace') and @trace = @{$self->{session}->param('trace')};
+	!@trace and push @trace, $node;
     if ($trace[-1] ne $node) {
         push @trace, $node;
         @trace > 5 and shift @trace;
@@ -262,26 +267,38 @@ sub run {
         if ($preview) {
             my $text = param('text') // '';
             $template->param(CONTENT=>Quiki::Formatter::format($self, $text));
+        	$template->param(TEXT=>$text);
         }
         else {
             Quiki::Pages->lock($node, $self->{sid});
+        	$template->param(TEXT=>$content);
         }
-
-        $template->param(TEXT=>$content);
 
         if (-d "data/attach/$node") {
             my @attachs;
             opendir DIR, "data/attach/$node";
             my $mm = new File::MMagic;
             my %desc;
-            for my $f (sort { lc($a) <=> lc($b)  } readdir(DIR)) {
+            for my $f (sort { lc($a) cmp lc($b)  } readdir(DIR)) {
                 next if $f =~ /^\.\.?$/;
                 if ($f =~ m!_desc_(.*)!) {
                     $desc{$1} = slurp "data/attach/$node/$f";
                 }
                 else {
                     my $mime = $mm->checktype_filename("data/attach/$node/$f");
-                    push @attachs, { ID => $f, MIME => $mime };
+                    my $mimeimg;
+                    given ($mime) {
+                        when (/image/) {
+                            $mimeimg = "images.png"
+                        }
+                        when (/pdf/) {
+                            $mimeimg = "doc_pdf.png"
+                        }
+                        default {
+                            $mimeimg = "page.png"
+                        }
+                    }
+                    push @attachs, { ID => $f, MIME => $mime, MIMEIMG => $mimeimg};
                 }
             }
             for (@attachs) {
@@ -290,20 +307,47 @@ sub run {
             $template->param(ATTACHS => \@attachs);
         }
     }
+    elsif ($action eq 'history') {
+
+        my @revs;
+        for (my $i=$self->{meta}{rev} ; $i>0 ; $i--) {
+            my $entry = { VERSION => $i };
+            if ($i != $self->{meta}{rev}) {
+                $entry->{AUTHOR} = $self->{meta}{revs}{$i}{last_update_by};
+                $entry->{DATE} =  $self->{meta}{revs}{$i}{last_updated_in};
+                $entry->{GRAVATAR} = gravatar_url(email => Quiki::Users->email($self->{meta}{revs}{$i}{last_update_by}));
+            }
+            else {
+                $entry->{AUTHOR} = $self->{meta}{last_update_by};
+                $entry->{DATE} =  $self->{meta}{last_updated_in};
+                $entry->{GRAVATAR} = gravatar_url(email => Quiki::Users->email($self->{meta}{last_update_by}));
+            }
+            push @revs, $entry;
+        }
+        $template->param(REVISIONS => \@revs);
+    }
     elsif ($action eq 'index') {
         opendir(DIR,'data/content/');
         my @pages;
-        for my $f (sort { lc($a) <=> lc($b) } readdir(DIR)) {
+        for my $f (sort { lc($a) cmp lc($b) } readdir(DIR)) {
             unless ($f=~/^\./) {
-                push @pages, { link => a({-href=>"$self->{SCRIPT_NAME}?node=$f"}, $f)};
-            }
+                my $meta = Quiki::Meta::get($f);
+                push @pages, 
+                  { URL => "$self->{SCRIPT_NAME}?node=$f",
+                    NAME => $f,
+                    AUTHOR => $meta->{last_update_by},
+                    DATE => $meta->{last_updated_in},
+                    GRAVATAR => gravatar_url(email => Quiki::Users->email($meta->{last_update_by})),
+                  }
+              }
         }
         closedir(DIR);
         $template->param(PAGES=>\@pages);
     }
     elsif ($action eq 'diff') {
-        my $target = param('target') || 0;
-        $template->param(CONTENT=>Quiki::Pages->calc_diff($self,$node,$self->{rev},$target));
+        my $source = param('source') || 1;
+        my $target = param('target') || 1;
+        $template->param(CONTENT=>Quiki::Pages->calc_diff($self,$node,$source,$target));
     }
     else {
         $template->param(CONTENT=>Quiki::Formatter::format($self, $content));
@@ -318,28 +362,19 @@ sub run {
     }
 
     unless ($action eq 'edit') {
-        my $L_META = sprintf("Last edited by %s, in %s",
-                             $self->{meta}{last_update_by}  || "",
-                             $self->{meta}{last_updated_in} || "");
-        my $R_META = sprintf("Revision: %s | Older: ",
-                             $self->{meta}{rev} || "");
-
-        if ($self->{meta}{rev} > 1) {
-            for (my $i=$self->{meta}{rev} ; $i>0 ; $i--) {
-                $R_META .= a({-href=>"$self->{SCRIPT_NAME}?node=$node&rev=$i"}, $i).' ';
-            }
-            $R_META .= start_form(-method => 'post',
-                                  -action => $self->{SCRIPT_NAME},
-                                  -style  => 'display: inline;');
-            $R_META .= hidden(-name => 'node', -value => $node, -override => 1);
-            $R_META .= hidden(-name => 'action', -value => 'diff', -override => 1);
-            $R_META .= submit(-name => 'submit', -value => 'Calc diff with: ', -override => 1);
-            $R_META .= "<select name='target'>";
-            for (my $i=$self->{meta}{rev}-1 ; $i>0 ; $i--) {
-                $R_META .= "<option value='$i'>revision $i</option>";
-            }
+        my $L_META;
+        if ($self->{meta}{last_update_by}) {
+            my $url = gravatar_url(email => Quiki::Users->email($self->{meta}{last_update_by}));
+            $L_META = img({-src => $url, -width => '24', -style => 'vertical-align: middle'});
+            $L_META .= sprintf("&nbsp;Last edited by %s, in %s",
+                               $self->{meta}{last_update_by},
+                               $self->{meta}{last_updated_in} || "");
         }
-        $R_META .= "</select></form>";
+        else {
+            $L_META = "";
+        }
+        my $R_META = sprintf("Revision: %s", $self->{meta}{rev} || "");
+
         $template->param(L_META=>$L_META);
         $template->param(R_META=>$R_META);
     }
@@ -351,7 +386,6 @@ sub run {
 
     # save meta data
     Quiki::Meta::set($node, $self->{meta});
-
     $template->output(print_to => \*STDOUT);
 }
 
