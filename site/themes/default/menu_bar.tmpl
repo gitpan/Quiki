@@ -1,7 +1,7 @@
 <!-- MENU BAR AT THE BOTTOM -->
 <div class="quiki_menu_bar">
   <div class="quiki_menu_bar_left">
-    <TMPL_IF EXPR="ACTION eq 'index' or ACTION eq 'history'">
+    <TMPL_IF EXPR="ACTION eq 'index' or ACTION eq 'history' or ACTION eq 'admin_page'">
       <!-- ... -->
     <TMPL_ELSIF EXPR="ACTION eq 'edit'"/>
       <input type="submit" name="submit" value="Cancel" />
@@ -67,6 +67,13 @@
 			<input type="hidden" name="action" value="profile_page" />
 			</form>
 			&nbsp;|&nbsp;
+                        <TMPL_IF EXPR="USER_ROLE eq 'admin'">
+                          <form method="post" enctype="multipart/form-data">
+                            <input type="submit" name="submit" value="Admin Page" />
+                            <input type="hidden" name="action" value="admin_page" />
+                          </form>
+			&nbsp;|&nbsp;
+                        </TMPL_IF>
 			<form method="post" enctype="multipart/form-data">
 			<input type="submit" name="submit" value="Log out" />
 			<input type="hidden" name="action" value="logout" />
@@ -79,7 +86,6 @@
 			&nbsp;|&nbsp;
 			<form method="post" enctype="multipart/form-data">
 			<input type="submit" name="submit" value="Log in" />
-			<input type="hidden" name="node" value="index"  />
 			<input type="hidden" name="action" value="login_page"  />
 			</form>
 		</TMPL_IF>

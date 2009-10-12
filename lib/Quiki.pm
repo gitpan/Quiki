@@ -2,6 +2,8 @@ package Quiki;
 
 use feature ':5.10';
 
+use Data::Dumper;
+
 use Quiki::Formatter;
 use Quiki::Meta;
 use Quiki::Users;
@@ -10,7 +12,6 @@ use Quiki::Pages;
 use CGI qw/:standard *div/;
 use CGI::Session;
 use HTML::Template::Pro;
-use Gravatar::URL;
 use File::MMagic;
 use File::Slurp 'slurp';
 
@@ -23,11 +24,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02_1
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02_1';
 
 
 =head1 SYNOPSIS
@@ -45,7 +46,7 @@ Creates a new Quiki object.
 
 =head2 run
 
-Runs de Quiki.
+Runs the Quiki.
 
 =cut
 
@@ -67,13 +68,14 @@ sub new {
     $self->{DOCROOT} = $ENV{SCRIPT_NAME};
     $self->{DOCROOT} =~ s!/[^/]+$!/!;
 
+    $self->{QUIKI_ID} = $self->{name} . '_' . slurp 'data/quiki_id';
     return bless $self, $class;
 }
 
 sub run {
     my $self = shift;
 
-    $self->{sid} = cookie("QuikiSID") || undef;
+    $self->{sid} = cookie($self->{QUIKI_ID}) || undef;
     $self->{session} = new CGI::Session(undef, $self->{sid}, undef);
 
     # XXX
@@ -85,6 +87,28 @@ sub run {
 
     $self->{meta} = Quiki::Meta::get($node);
     $self->{node} = $node;
+
+    if ($action eq 'update_perms') {
+        my $username = param('edit_user');
+        if (param("admin_action") eq "Delete") {
+            if ($username eq "admin") {
+                $self->{session}->param('msg', "Admin account can not be deleted.");
+            } else {
+                Quiki::Users->delete($username);
+                $self->{session}->param('msg', "User '$username' deleted.");
+            }
+        }
+        if (param("admin_action") eq "Save") {
+            my $perm = param("perms");
+            if ($username eq "admin") {
+                $self->{session}->param('msg', "Admin account righs can not be changed.");
+            } else {
+                Quiki::Users->update($username, perm_group => $perm);
+                $self->{session}->param('msg', "Permission rights changed for user '$username'.");
+            }
+        }
+        $action = 'admin_page';
+    }
 
     if ($action eq 'save_profile' && param('submit') =~ /^Save/) {
         if (param("new_password1") && (param("new_password1") ne param("new_password2"))) {
@@ -213,7 +237,7 @@ sub run {
     }
 
 
-    my $cookie = cookie('QuikiSID' => $self->{session}->id);
+    my $cookie = cookie($self->{QUIKI_ID} => $self->{session}->id);
     print header(-charset=>'UTF-8',-cookie=>$cookie);
 
     my @trace;
@@ -238,7 +262,9 @@ sub run {
 
     my $username = ($self->{session}->param('authenticated')?
                     $self->{session}->param('username'):"guest");
+    ## XXX - Later, join these functions to query database only once
     my $email    = Quiki::Users->email($username);
+    my $urole    = Quiki::Users->role($username);
     my $theme    = $self->{theme} || 'default';
 
     my $template = HTML::Template::Pro->new(filename => "themes/$theme/wrapper.tmpl",
@@ -254,12 +280,13 @@ sub run {
                      REV         => $self->{rev},
                      BREADCUMBS  => $breadcumbs,
                      DOCROOT     => $self->{DOCROOT},
+                     USER_ROLE   => $urole,
                      PREVIEW     => $preview,
                     );
 
     if ($action eq 'profile_page') {
         $template->param(EMAIL       => $email,
-                         GRAVATAR    => gravatar_url(email => $email));
+                         GRAVATAR    => Quiki::Users->gravatar($username));
     }
 
     if ($action eq 'edit' && 
@@ -315,19 +342,23 @@ sub run {
             if ($i != $self->{meta}{rev}) {
                 $entry->{AUTHOR} = $self->{meta}{revs}{$i}{last_update_by};
                 $entry->{DATE} =  $self->{meta}{revs}{$i}{last_updated_in};
-                $entry->{GRAVATAR} = gravatar_url(email => Quiki::Users->email($self->{meta}{revs}{$i}{last_update_by}));
+                $entry->{GRAVATAR} = Quiki::Users->gravatar($self->{meta}{revs}{$i}{last_update_by});
             }
             else {
                 $entry->{AUTHOR} = $self->{meta}{last_update_by};
                 $entry->{DATE} =  $self->{meta}{last_updated_in};
-                $entry->{GRAVATAR} = gravatar_url(email => Quiki::Users->email($self->{meta}{last_update_by}));
+                $entry->{GRAVATAR} = Quiki::Users->gravatar($self->{meta}{last_update_by});
             }
             push @revs, $entry;
         }
         $template->param(REVISIONS => \@revs);
     }
+    elsif ($action eq 'admin_page') {
+        my $users = Quiki::Users->list;
+        $template->param(USERS => $users);
+    }
     elsif ($action eq 'index') {
-        opendir(DIR,'data/content/');
+        opendir DIR, 'data/content/';
         my @pages;
         for my $f (sort { lc($a) cmp lc($b) } readdir(DIR)) {
             unless ($f=~/^\./) {
@@ -337,11 +368,11 @@ sub run {
                     NAME => $f,
                     AUTHOR => $meta->{last_update_by},
                     DATE => $meta->{last_updated_in},
-                    GRAVATAR => gravatar_url(email => Quiki::Users->email($meta->{last_update_by})),
+                    GRAVATAR => Quiki::Users->gravatar($meta->{last_update_by}),
                   }
               }
         }
-        closedir(DIR);
+        closedir DIR;
         $template->param(PAGES=>\@pages);
     }
     elsif ($action eq 'diff') {
@@ -364,7 +395,7 @@ sub run {
     unless ($action eq 'edit') {
         my $L_META;
         if ($self->{meta}{last_update_by}) {
-            my $url = gravatar_url(email => Quiki::Users->email($self->{meta}{last_update_by}));
+            my $url = Quiki::Users->gravatar($self->{meta}{last_update_by});
             $L_META = img({-src => $url, -width => '24', -style => 'vertical-align: middle'});
             $L_META .= sprintf("&nbsp;Last edited by %s, in %s",
                                $self->{meta}{last_update_by},

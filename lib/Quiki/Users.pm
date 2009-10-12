@@ -1,5 +1,7 @@
 package Quiki::Users;
 
+use Gravatar::URL;
+
 use Text::Password::Pronounceable;
 use Email::Sender::Simple 'sendmail';
 use Email::Simple;
@@ -15,9 +17,28 @@ sub _connect {
     return DBI->connect("dbi:SQLite:dbname=data/users.sqlite","","");
 }
 
+sub list {
+    my $dbh = _connect;
+    my @list = ();
+    my $sth = $dbh->prepare("SELECT username, email, perm_group FROM auth;");
+    $sth->execute;
+    my $row;
+    while ($row = $sth->fetchrow_hashref) {
+        $row->{gravatar} = Quiki::Users->gravatar($row->{username});
+        push @list, $row;
+    }
+    $dbh->disconnect;
+    return \@list;
+}
+
+sub gravatar {
+    my ($class, $username) = @_;
+    return gravatar_url(email => $class->email($username));
+}
+
 sub update {
     my ($class, $username, %info) = @_;
-    my @valid_fields = qw.password email.;
+    my @valid_fields = qw.password email perm_group.;
 
     $info{password} = md5_hex($info{password}) if exists($info{password});
 
@@ -31,6 +52,17 @@ sub update {
     my $dbh = _connect;
     my $sth = $dbh->prepare("UPDATE auth SET ".join(", ",@sql)." WHERE username = ?");
     $sth->execute($username);
+    $dbh->disconnect;
+}
+
+sub role {
+    my ($class, $username) = @_;
+    my $dbh = _connect;
+    my $sth = $dbh->prepare("SELECT perm_group FROM auth WHERE username = ?;");
+    $sth->execute($username);
+    my @row = $sth->fetchrow_array;
+    $dbh->disconnect;
+    return @row ? $row[0] : undef ;
 }
 
 sub email {
@@ -39,15 +71,22 @@ sub email {
     my $sth = $dbh->prepare("SELECT email FROM auth WHERE username = ?;");
     $sth->execute($username);
     my @row = $sth->fetchrow_array;
-
+    $dbh->disconnect;
     return @row ? $row[0] : undef ;
+}
+
+sub delete {
+    my ($class, $username) = @_;
+    my $dbh = _connect;
+    my $sth = $dbh->prepare("DELETE FROM auth WHERE username = ?;");
+    $sth->execute($username);
 }
 
 sub create {
     my ($class, $quiki, $username, $email) = @_;
     my $password = Text::Password::Pronounceable->generate(6, 10);
     my $dbh = _connect;
-    my $sth = $dbh->prepare("INSERT INTO auth VALUES (?,?,?);");
+    my $sth = $dbh->prepare("INSERT INTO auth VALUES (?,?,?,'user');");
     $sth->execute($username, md5_hex($password), $email);
 
     my $servername = "http://$quiki->{SERVER_NAME}$quiki->{SCRIPT_NAME}";
@@ -67,6 +106,7 @@ Hello, $username.
 Your password for $quiki->{name} at $servername is: $password
 Thank you.
 EOEMAIL
+    $dbh->disconnect;
     sendmail($message);
 }
 
@@ -77,6 +117,7 @@ sub exists {
     $sth->execute($username);
 
     my @row = $sth->fetchrow_array;
+    $dbh->disconnect;
     return (@row)?1:0;
 }
 
@@ -88,6 +129,7 @@ sub auth {
     $sth->execute($username);
 
     my @row = $sth->fetchrow_array;
+    $dbh->disconnect;
     if (@row) {
         return (md5_hex($password) eq $row[0]);
     }
@@ -125,6 +167,10 @@ This function verifies an user credentials given an username and a password.
 
 This function verifies if a username already exists.
 
+=head2 gravatar
+
+Returns the gravatar URL for that user.
+
 =head2 create
 
 This function creates a new user given an username and an e-mail address.
@@ -133,9 +179,21 @@ This function creates a new user given an username and an e-mail address.
 
 This function retrieves the e-mail address for a given username.
 
+=head2 role
+
+This function retrieves the user role for a given username.
+
+=head2 delete
+
+Delestes information for a specific user. No questions. Just does it.
+
 =head2 update
 
 This function is used to update user's information.
+
+=head2 list
+
+Returns a list of all users.
 
 =head1 SEE ALSO
 

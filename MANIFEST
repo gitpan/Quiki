@@ -6,6 +6,7 @@ lib/Quiki.pm
 lib/Quiki/Formatter.pm
 t/00-load.t
 t/01-formatter.t
+t/02-meta.t
 t/pod-coverage.t
 t/pod.t
 script/quiki_create.PL
@@ -53,4 +54,5 @@ site/images/page.png
 site/images/doc_pdf.png
 site/themes/default/history.tmpl
 site/images/favicon.ico
+site/themes/default/admin.tmpl
 META.yml                                 Module meta-data (added by MakeMaker)
