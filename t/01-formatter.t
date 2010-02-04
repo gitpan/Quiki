@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use Test::More tests => 40;
+use Test::More tests => 44;
 
 use_ok("Quiki::Formatter");
 
@@ -472,5 +472,50 @@ EOO
 is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
 {{http://www.xpto.foo/foo.png}}
 EOI
-<p><img alt="http://www.xpto.foo/foo.png" src="http://www.xpto.foo/foo.png" /></p>
+<p><img title="http://www.xpto.foo/foo.png" src="http://www.xpto.foo/foo.png" alt="http://www.xpto.foo/foo.png" /></p>
+EOO
+
+
+is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
+{{  http://www.xpto.foo/foo.png}}
+EOI
+<p><img title="http://www.xpto.foo/foo.png" src="http://www.xpto.foo/foo.png" style="float: right" alt="http://www.xpto.foo/foo.png" /></p>
+EOO
+
+
+is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
+{{http://www.xpto.foo/foo.png  }}
+EOI
+<p><img title="http://www.xpto.foo/foo.png" src="http://www.xpto.foo/foo.png" style="float: left" alt="http://www.xpto.foo/foo.png" /></p>
+EOO
+
+
+# The space in the example bellow IS IMPORTANT
+is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
+  * one
+  * two
+ 
+  * one
+  * two
+EOI
+<ul>
+<li> one</li>
+<li> two</li>
+</ul>
+
+
+<ul>
+<li> one</li>
+<li> two</li>
+</ul>
+
+EOO
+
+is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
+| [[http://www.google.com|a]] | b | c |
+EOI
+<table class="quiki_table">
+<tr><td style="text-align: center"> <a href="http://www.google.com">a</a> </td> <td style="text-align: center"> b </td> <td style="text-align: center"> c </td></tr>
+</table>
+
 EOO

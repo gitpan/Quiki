@@ -14,6 +14,7 @@ use CGI::Session;
 use HTML::Template::Pro;
 use File::MMagic;
 use File::Slurp 'slurp';
+use Pod::Html;
 
 use warnings;
 use strict;
@@ -24,11 +25,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.02_1
+Version 0.02
 
 =cut
 
-our $VERSION = '0.02_1';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -83,6 +84,7 @@ sub run {
     my $action = param('action') || '';
 
     # XXX -- temos de proteger mais coisas, possivelmente
+    #        E era giro termos filename e displayname
     $node =~ s/\s/_/g;
 
     $self->{meta} = Quiki::Meta::get($node);
@@ -131,7 +133,7 @@ sub run {
             if (param("filename$_") && param("name$_")) {
                 my $id = param("name$_");
                 my $path = "data/attach/$node";
-                (! -f $path) and mkdir $path and chown 0777, $path;
+                -f $path or (mkdir $path and chown 0777, $path);
                 open OUT, ">", "$path/$id" or die "Can't create out file: $!";
                 my $filename = param("filename$_");
                 my ($buffer, $bytesread);
@@ -279,7 +281,9 @@ sub run {
                      LAST_REV    => (($self->{rev} || 0) == ($self->{meta}{rev} || 0)),
                      REV         => $self->{rev},
                      BREADCUMBS  => $breadcumbs,
+                     SERVERNAME  => $self->{SERVER_NAME},
                      DOCROOT     => $self->{DOCROOT},
+                     OPENSITE    => $self->{opensite} // 1,
                      USER_ROLE   => $urole,
                      PREVIEW     => $preview,
                     );
@@ -420,7 +424,47 @@ sub run {
     $template->output(print_to => \*STDOUT);
 }
 
-=head1 SYNTAX
+=head1 QUIKI CONFIGURATION FILE
+
+After a Quiki wiki is deployed with C<< quiki_create >> a
+C<< quiki.conf >> file can be edited to configure Quiki behavior. While
+later versions might offer a web interface to configure them, at
+present you need to use a text editor and change the file.  Note that
+it is a Perl file. Therefore it should parse correctly by Perl. You
+can check it using C<< perl -c quiki.conf >>.
+
+Quiki configuration file supports the following keys:
+
+=over 4
+
+=item name
+
+The display name for your wiki
+
+=item theme
+
+The theme to be used. Note that at the time we are writing this only
+the C<< default >> theme exists
+
+=item index
+
+The name of the main quiki page. It defaults to C<< index >>.
+
+=item opensite
+
+This is a boolean value. By default it is true (1), meaning the
+register button will be available to everybody visiting your
+Quiki. Turn it off setting it to false (0).
+
+At the current moment there isn't any other way to register. Therefore
+you should turn registering off only after all users have an account,
+or you need to turn it off manually everytime a new user has to
+register.
+
+=back
+
+
+=head1 QUIKI SYNTAX
 
 Quiki wiki syntax is very similar to other wiki, and especially
 similar with dokuwiki syntax.
@@ -638,7 +682,7 @@ L<http://search.cpan.org/dist/Quiki/>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Alberto Simoes and Nuno Carvalho.
+Copyright 2009-2010 Alberto Simoes and Nuno Carvalho.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published

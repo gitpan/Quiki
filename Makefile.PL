@@ -25,6 +25,7 @@ WriteMakefile(
                   'MIME::Base64'   => 0,
                   'DBD::SQLite'    => 0,
                   'Digest::MD5'    => 0,
+                  'Pod::Simple'    => 0,
                   'DBI'            => 0,
                   'Regexp::Common' => '2.122',
                   'Email::Sender'  => 0,
@@ -40,3 +41,13 @@ WriteMakefile(
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Quiki-*' },
 );
+
+package MY;
+sub processPL {
+    my $self = shift;
+
+    my $make = $self->SUPER::processPL(@_);
+    $make =~ s{pm_to_blib}{pm_to_blib site.lst script/quiki_create.template};
+
+    return $make;
+}

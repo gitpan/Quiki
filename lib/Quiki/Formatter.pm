@@ -49,7 +49,7 @@ sub _format_table {
         if ($1 eq "^") {
             $table .= Tr(th([map { _inlines($Quiki, $_) }  split /\^/, $c[0]])) . "\n";
         } else {
-            $table .= Tr(join(" ",map { _tds($Quiki, $_) } split /\|/, $c[0])) . "\n";
+            $table .= Tr(join(" ",map { _tds($Quiki, $_) } split /\|(?![^\[]+\]\])/, $c[0])) . "\n";
         }
         shift @c;
     }
@@ -116,6 +116,7 @@ sub _format_list {
 sub _format_chunk {
     my ($Quiki, $chunk) = @_;
     $chunk =~ s/\n$//;
+	$chunk =~ s/\n\s{1,2}\n/\n\n/g;
     $chunk =~ s/^\n//;
     $chunk = _protect($chunk);
 
@@ -222,18 +223,32 @@ sub _inlines {
 
        ## {{wiki: foo | desc }}
        qr/\{\{(\s*)wiki:([^}|]+)\|([^}]+?)(\s*)\}\}/        => sub {
-           my $align = (length($1) && length($4))?"center":(length($1)?"right":"left");
+           my $align = (length($1) && length($4))?"center":
+             (length($1)?"right":
+              (length($4)?"left":""));
            _inline_doc($Quiki, $2,$3, $align)
        },
        ## {{wiki: foo  }}
        qr/\{\{(\s*)wiki:([^}]+?)(\s*)\}\}/                  => sub {
-           my $align = (length($1) && length($3))?"center":(length($1)?"right":"left");
+           my $align = (length($1) && length($3))?"center":
+             (length($1)?"right":
+              (length($3)?"left":""));
            _inline_doc($Quiki, $2,$2, $align) },
 
        ## {{ foo | desc  }}
-       qr/\{\{([^}|]+)\|([^}]+)\}\}/        => sub { img({alt => $2, src => $1}) },
+       qr/\{\{(\s*)([^}|]+)\|([^}]+?)(\s*)\}\}/        => sub {
+           my $align = (length($1) && length($4))?"center":
+             (length($1)?"right":
+              (length($4)?"left":""));
+           _inline_pic($Quiki, $2, $3, $align);
+       },
        ## {{ foo  }}
-       qr/\{\{([^}]+)\}\}/                  => sub { img({alt => $1, src => $1}) },
+       qr/\{\{(\s*)([^}]+?)(\s*)\}\}/       => sub {
+           my $align = (length($1) && length($3))?"center":
+             (length($1)?"right":
+              (length($3)?"left":""));
+           _inline_pic($Quiki, $2, $2, $align);
+       },
 
        ## urls que nao sigam aspas
        qr/(?<!")$RE{URI}{-keep}/                => sub { a({-href=>$1}, $1) },
@@ -249,6 +264,28 @@ sub _inlines {
     return _expand_entities($chunk);
 }
 
+sub _inline_pic {
+    my ($quiki, $url, $desc, $align) = @_;
+    given($align) {
+        when ("right") {
+            return img({-alt=>$desc, -title=>$desc,
+                        -src=>$url, -style=>"float: right"})
+        }
+        when ("left") {
+            return img({-alt=>$desc, -title=>$desc,
+                        -src=>$url, -style=>"float: left"})
+        }
+        when ("center") {
+            return div({-style=>"text-align: center"},
+                       img({-alt=>$desc, -title=>$desc,
+                            -src=>$url}))
+        }
+        default {
+            return img({-alt=>$desc, -title=>$desc, -src=>$url})
+        }
+    }
+}
+
 sub _inline_doc {
     my ($quiki, $id, $desc, $align) = @_;
     my $node = $quiki->{node};
@@ -258,6 +295,9 @@ sub _inline_doc {
         given($align) {
             when ("right") {
                 return img({-alt=>$desc, -src=>"data/attach/$node/$id", -style=>"float: right"})
+            }
+            when ("left") {
+                return img({-alt=>$desc, -src=>"data/attach/$node/$id", -style=>"float: left"})
             }
             when ("center") {
                 return div({-style=>"text-align: center"}, 
@@ -320,7 +360,7 @@ Receives a Wiki page. Returns it in HTML.
 
 =head1 SEE ALSO
 
-Quiki, perl(1)
+Quiki::Syntax, Quiki
 
 =head1 AUTHOR
 
@@ -329,7 +369,7 @@ Nuno Carvalho, E<lt>smash@cpan.orgE<gt>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Alberto Simoes and Nuno Carvalho.
+Copyright 2009-2010 Alberto Simoes and Nuno Carvalho.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
