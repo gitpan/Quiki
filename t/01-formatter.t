@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use Test::More tests => 44;
+use Test::More tests => 45;
 
 use_ok("Quiki::Formatter");
 
@@ -518,4 +518,10 @@ EOI
 <tr><td style="text-align: center"> <a href="http://www.google.com">a</a> </td> <td style="text-align: center"> b </td> <td style="text-align: center"> c </td></tr>
 </table>
 
+EOO
+
+is(Quiki::Formatter::format({},<<'EOI'), <<'EOO');
+Um corpus retirado do [[http://urd.let.rug.nl/tiedeman/OPUS/|OPUS]], que consiste nas legendas em Português do site [[http://www.opensubtitles.org/]].
+EOI
+<p>Um corpus retirado do <a href="http://urd.let.rug.nl/tiedeman/OPUS/">OPUS</a>, que consiste nas legendas em Português do site <a href="http://www.opensubtitles.org/">http://www.opensubtitles.org/</a>.</p>
 EOO

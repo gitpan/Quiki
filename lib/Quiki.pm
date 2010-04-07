@@ -25,11 +25,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -207,11 +207,13 @@ sub run {
     if ($action eq "edit" && Quiki::Pages->locked($node, $self->{sid})) {
         $action = "";
         $self->{session}->param('msg',"Sorry but someone else is currently editing this node!");
+    } else {
+        Quiki::Pages->lock($node, $self->{sid});
     }
 
     # XXX
     if ($action eq 'save' && param("submit") eq "Save") {
-        if (Quiki::Pages->locked($node, $self->{sid})) {
+        if (Quiki::Pages->locked_for_user($node, $self->{sid})) {
             my $text = param('text') // '';
             Quiki::Pages->check_in($self, $node, $text);
             Quiki::Pages->unlock($node);
@@ -293,16 +295,15 @@ sub run {
                          GRAVATAR    => Quiki::Users->gravatar($username));
     }
 
-    if ($action eq 'edit' && 
-        ($preview || !Quiki::Pages->locked($node, $self->{sid}))) {
+    if ($action eq 'edit') { # && 
+#        ($preview || !Quiki::Pages->locked($node, $self->{sid}))) {
         if ($preview) {
             my $text = param('text') // '';
             $template->param(CONTENT=>Quiki::Formatter::format($self, $text));
-        	$template->param(TEXT=>$text);
+            $template->param(TEXT=>$text);
         }
         else {
-            Quiki::Pages->lock($node, $self->{sid});
-        	$template->param(TEXT=>$content);
+            $template->param(TEXT=>$content);
         }
 
         if (-d "data/attach/$node") {
