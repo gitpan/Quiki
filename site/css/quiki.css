@@ -189,3 +189,11 @@ a img {
   padding: 3px;
   background-color: #eeeedd;
 }
+
+.quiki_collapsed:before { 
+  content: "[+] "
+}
+
+.quiki_expanded:before { 
+  content: "[-] "
+}

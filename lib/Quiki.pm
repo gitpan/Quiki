@@ -25,11 +25,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 
 =head1 SYNOPSIS
@@ -244,14 +244,15 @@ sub run {
     my $cookie = cookie($self->{QUIKI_ID} => $self->{session}->id);
     print header(-charset=>'UTF-8',-cookie=>$cookie);
 
+    # Calculate breadcumbs
     my @trace;
-    $self->{session}->param('trace') and @trace = @{$self->{session}->param('trace')};
-	!@trace and push @trace, $node;
+    @trace = @{$self->{session}->param('trace')} if $self->{session}->param('trace');
+    push @trace, $node unless @trace;
     if ($trace[-1] ne $node) {
         push @trace, $node;
         @trace > 5 and shift @trace;
-        $self->{session}->param('trace',\@trace);
     }
+    $self->{session}->param('trace',\@trace);
     my $breadcumbs = join(' » ', map { a({-href=>"$self->{SCRIPT_NAME}?node=$_"}, $_); } @trace);
 
 
@@ -313,24 +314,22 @@ sub run {
             my %desc;
             for my $f (sort { lc($a) cmp lc($b)  } readdir(DIR)) {
                 next if $f =~ /^\.\.?$/;
-                if ($f =~ m!_desc_(.*)!) {
-                    $desc{$1} = slurp "data/attach/$node/$f";
-                }
+                my $filename = "data/attach/$node/$f";
+                if ($f =~ m!_desc_(.*)!) { $desc{$1} = slurp $filename }
                 else {
-                    my $mime = $mm->checktype_filename("data/attach/$node/$f");
+                    ## XXX - TODO - Put this elsewhere
+                    my $mime = $mm->checktype_filename( $filename );
                     my $mimeimg;
                     given ($mime) {
-                        when (/image/) {
-                            $mimeimg = "images.png"
-                        }
-                        when (/pdf/) {
-                            $mimeimg = "doc_pdf.png"
-                        }
-                        default {
-                            $mimeimg = "page.png"
-                        }
+                        when (/image/) { $mimeimg = "mime_image.png"   }
+                        when (/pdf/)   { $mimeimg = "mime_pdf.png"     }
+                        when (/zip/)   { $mimeimg = "mime_zip.png"     }
+                        default        { $mimeimg = "mime_default.png" }
                     }
-                    push @attachs, { ID => $f, MIME => $mime, MIMEIMG => $mimeimg};
+                    push @attachs, { ID      => $f,
+                                     MIME    => $mime,
+                                     SIZE    => sprintf("%.0f",((stat($filename))[7] / 1024)),
+                                     MIMEIMG => $mimeimg };
                 }
             }
             for (@attachs) {

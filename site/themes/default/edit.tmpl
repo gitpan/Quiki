@@ -13,6 +13,18 @@
     $('#quiki_attach_table').hide();
   });
 
+  function attach_show() {
+     var title = $('#quiki_attach_title');
+     if (title.hasClass('quiki_collapsed')) {
+        title.removeClass('quiki_collapsed');
+        title.addClass('quiki_expanded');
+     } else {
+        title.removeClass('quiki_expanded');
+        title.addClass('quiki_collapsed');
+     }
+     $('#quiki_attach_table').toggle(400);
+  }
+
 </script>
 
 <form method="post" enctype="multipart/form-data">
@@ -22,13 +34,14 @@
 
   <tmpl_if name=ATTACHS>
     <div id="quiki_attach_list">
-      <h4 style="cursor: pointer" 
-          onClick="$('#quiki_attach_table').toggle(400);">Node attachments</h4>
+      <h4 id="quiki_attach_title" style="cursor: pointer" class="quiki_collapsed"
+          onClick="attach_show();">Node attachments</h4>
       <table id="quiki_attach_table">
         <tr>
           <th></th>
           <th>Identifier</th>
           <th> </th>
+          <th>Size</th>
           <th>Description</th>
         </tr>
         <tmpl_loop name=ATTACHS>
@@ -39,6 +52,7 @@
             <td> <a target="_new"
                     href="data/attach/<tmpl_var name="WIKINODE">/<tmpl_var ID>"><tmpl_var ID></a> </td>
             <td> <img src="images/<tmpl_var name="MIMEIMG"/>" alt="<tmpl_var name="MIME"/>" title="<tmpl_var name="MIME"/>"/></td>
+            <td style="text-align: right"> <tmpl_var SIZE > Kb</td>
             <td> <tmpl_var DESC ></td>
           </tr>
         </tmpl_loop>
