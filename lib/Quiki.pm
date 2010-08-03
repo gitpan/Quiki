@@ -25,11 +25,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 
 =head1 SYNOPSIS
@@ -153,7 +153,7 @@ sub run {
     }
 
     # XXX
-    if ($action eq 'register' && param('submit') eq "Register") {
+    if ($action eq 'register' && param('submit_opt') eq "Register") {
         my $username = param('username') || '';
         my $email    = param('email')    || '';
         if ($username and $email and $email =~ m/\@/) { # XXX -- fix regexp :D
@@ -212,7 +212,7 @@ sub run {
     }
 
     # XXX
-    if ($action eq 'save' && param("submit") eq "Save") {
+    if ($action eq 'save' && param("submit_opt") eq "Save") {
         if (Quiki::Pages->locked_for_user($node, $self->{sid})) {
             my $text = param('text') // '';
             Quiki::Pages->check_in($self, $node, $text);
@@ -257,11 +257,11 @@ sub run {
 
 
     my $preview = 0;
-    if ($action eq 'save' && param("submit") eq "Preview") {
+    if ($action eq 'save' && param("submit_opt") eq "Preview") {
         $preview = 1;
         $action = 'edit';
     }
-    if ($action eq 'save' && param("submit") eq "Cancel") {
+    if ($action eq 'save' && param("submit_opt") eq "Cancel") {
         Quiki::Pages->unlock($node);
     }
 
@@ -360,6 +360,7 @@ sub run {
     elsif ($action eq 'admin_page') {
         my $users = Quiki::Users->list;
         $template->param(USERS => $users);
+        $template->param(WIKINODE => 'Administration');
     }
     elsif ($action eq 'index') {
         opendir DIR, 'data/content/';
@@ -408,7 +409,7 @@ sub run {
         else {
             $L_META = "";
         }
-        my $R_META = sprintf("Revision: %s", $self->{meta}{rev} || "");
+        my $R_META = sprintf("Revision: %s", $self->{rev} || "");
 
         $template->param(L_META=>$L_META);
         $template->param(R_META=>$R_META);
@@ -636,7 +637,7 @@ Sample VirtualHost for Apache2:
 
 =item * Alberto Simoes, C<< <ambs at cpan.org> >>
 
-=item * Nuno Carvalho, C<< <smash at cpan.org >>
+=item * Nuno Carvalho, C<< <smash at cpan.org> >>
 
 =back
 
@@ -679,6 +680,8 @@ L<http://search.cpan.org/dist/Quiki/>
 
 =head1 ACKNOWLEDGEMENTS
 
+Thank you Luis 'Houser' Fernandes C<< <housah at gmail.com> >> for the 
+default theme layout design.
 
 =head1 COPYRIGHT & LICENSE
 

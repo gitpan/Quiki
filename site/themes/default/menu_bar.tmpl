@@ -1,56 +1,52 @@
 <!-- MENU BAR AT THE BOTTOM -->
+<script type="text/javascript">
+function mySubmit(opt) {
+	var form = document.forms['edit_form'];
+	var el = document.createElement("input");
+	el.type = "hidden";
+	el.name = "submit_opt";
+	el.value = opt;
+	form.appendChild(el);
+	form.submit();
+}
+</script>
+
+<div class="quiki_menu_bar_wrapper">
+<div class="quiki_menu_bar_wrapper_side_l"></div>
+<div class="quiki_menu_bar_wrapper_side_r"></div>
 <div class="quiki_menu_bar">
   <div class="quiki_menu_bar_left">
     <TMPL_IF EXPR="ACTION eq 'index' or ACTION eq 'history' or ACTION eq 'admin_page'">
       <!-- ... -->
     <TMPL_ELSIF EXPR="ACTION eq 'edit'"/>
-      <input type="submit" name="submit" value="Cancel" />
-      &nbsp;|&nbsp;
-      <input type="submit" name="submit" value="Preview" />
-      &nbsp;|&nbsp;
-      <input type="submit" name="submit" value="Save" />
-      &nbsp;|&nbsp;
-      <button type="button" onClick="window.open('<TMPL_VAR NAME="SERVERROOT"/><TMPL_VAR NAME="DOCROOT"/>help/syntax.html')">Syntax Help</button>
+      <a class="quiki_menu_button" target="_blank" href="<TMPL_VAR NAME="SERVERROOT"/><TMPL_VAR NAME="DOCROOT"/>help/syntax.html"><span>Syntax Help</span></a>&nbsp;|&nbsp;
+      <a class="quiki_menu_button" href="javascript: mySubmit('Cancel');"><span>Cancel</span></a>
+      <a class="quiki_menu_button" href="javascript: mySubmit('Preview');"><span>Preview</span></a>
+      <a class="quiki_menu_button" href="javascript: mySubmit('Save');"><span>Save</span></a>
       </form> <!-- XXX - Nao gosto deste </form> a fechar um <form> algures noutra template -->
     <TMPL_ELSE>
       <TMPL_IF NAME="AUTHENTICATED">
 	<TMPL_IF NAME="LAST_REV">
+		<a class="quiki_menu_button" href="?node=<TMPL_VAR WIKINODE>&action=edit"><span>Edit this page</span></a>
+		<a class="quiki_menu_button" href="?action=attach"><span>Attach document</span></a>
+		<a class="quiki_menu_button" href="?action=history"><span>Page history</span></a>
 	  <form method="post" enctype="multipart/form-data">
-	    <input type="hidden" name="node" value="<TMPL_VAR WIKINODE>" />
-	    <input type="hidden" name="action" value="edit" />
-	    <input type="submit" name="submit" value="Edit this page" />
-	  </form>
-	  &nbsp;|&nbsp;
-	  <form method="post" enctype="multipart/form-data">
-	    <input type="hidden" name="node" value="<TMPL_VAR WIKINODE>" />
-	    <input type="hidden" name="action" value="attach" />
-	    <input type="submit" name="submit" value="Attach Document" />
-	  </form>
-	  &nbsp;|&nbsp;
-	  <form method="post" enctype="multipart/form-data">
-	    <input type="hidden" name="node" value="<TMPL_VAR WIKINODE>" />
-	    <input type="hidden" name="action" value="history" />
-	    <input type="submit" name="submit" value="Page history" />
-	  </form>
-	  &nbsp;|&nbsp;
-	  <form method="post" enctype="multipart/form-data">
-	    <input type="submit" name="submit" value="Create new page" />
+        <a class="quiki_menu_button" href="javascript: document.create_new_form.submit();"><span>Create new page</span></a>
 	    &nbsp;
-	    <input type="text" name="node" value="&lt;name&gt;" size="8" />
+	    <input class="quiki_menu_input_text_create" type="text" name="node" value="&lt;name&gt;" size="8" />
 	    <input type="hidden" name="action" value="create" />
 	  </form>
         <TMPL_ELSE>
-	  <form method="post" enctype="multipart/form-data">
+	  <form name="rollback_form" method="post" enctype="multipart/form-data">
 	    <input type="hidden" name="node" value="<TMPL_VAR WIKINODE>" />
 	    <input type="hidden" name="action" value="rollback" />
 	    <input type="hidden" name="rev" value="<TMPL_VAR REV>" />
-	    <input type="submit" name="submit" value="Rollback to this version" />
+        <a class="quiki_menu_button" href="javascript: document.rollback_form.submit();"><span>Rollback to this version</span></a>
 	  </form>
-	  &nbsp;|&nbsp;
-	  <form method="post" enctype="multipart/form-data">
-	    <input type="submit" name="submit" value="Create new page" />
+	  <form name="create_new_form" method="post" enctype="multipart/form-data">
+        <a class="quiki_menu_button" href="javascript: document.create_new_form.submit();"><span>Create new page</span></a>
 	    &nbsp;
-	    <input type="text" name="node" value="&lt;name&gt;" size="8" />
+	    <input class="quiki_menu_input_text_create" type="text" name="node" value="&lt;name&gt;" size="8" />
 	    <input type="hidden" name="action" value="create" />
 	  </form>
 	</TMPL_IF>
@@ -58,43 +54,23 @@
     </TMPL_IF>
   </div>
 	<div class="quiki_menu_bar_right">
-		<form method="post" enctype="multipart/form-data">
-		<input type="hidden" name="action" value="index" />
-		<input type="submit" name="submit" value="Index" />
-		</form>
-		&nbsp;|&nbsp;
+		<a class="quiki_menu_button" href="?node=index"><span>Index</span></a>
 		<TMPL_IF NAME="AUTHENTICATED">
-			<form method="post" enctype="multipart/form-data">
-			<input type="submit" name="submit" value="Edit Profile" />
-			<input type="hidden" name="action" value="profile_page" />
-			</form>
-			&nbsp;|&nbsp;
+			<a class="quiki_menu_button" href="?action=profile_page"><span>Edit Profile</span></a>
                         <TMPL_IF EXPR="USER_ROLE eq 'admin'">
-                          <form method="post" enctype="multipart/form-data">
-                            <input type="submit" name="submit" value="Admin Page" />
-                            <input type="hidden" name="action" value="admin_page" />
-                          </form>
-			&nbsp;|&nbsp;
+						<a class="quiki_menu_button" href="?action=admin_page"><span>Admin Page</span></a>
+						<img src="images/sep.png" />
                         </TMPL_IF>
-			<form method="post" enctype="multipart/form-data">
-			<input type="submit" name="submit" value="Log out" />
-			<input type="hidden" name="action" value="logout" />
-			</form>
+			<a class="quiki_menu_button" href="?action=logout"><span>Logout</span></a>
 		<TMPL_ELSE>
-                        <TMPL_IF NAME="OPENSITE">
-  			   <form method="post" enctype="multipart/form-data">
-                           <input type="hidden" name="node" value="<tmpl_var name="WIKINODE">">
-			   <input type="hidden" name="action" value="register_page"  />
-			   <input type="submit" name="submit" value="Sign up" />
-			   </form>
-			  &nbsp;|&nbsp;
-                        </TMPL_IF>
-			<form method="post" enctype="multipart/form-data">
-                        <input type="hidden" name="node" value="<tmpl_var name="WIKINODE">">
-			<input type="submit" name="submit" value="Log in" />
-			<input type="hidden" name="action" value="login_page"  />
-			</form>
+			<TMPL_IF NAME="OPENSITE">
+				<a class="quiki_menu_button" href="?node=<tmpl_var name='WIKINODE'>&action=register_page"><span>Sign Up</span></a>
+			</TMPL_IF>
+			<a class="quiki_menu_button" href="?node=<tmpl_var name='WIKINODE'>&action=login_page"><span>Log in</span></a>
 		</TMPL_IF>
 	</div>
-<div style="clear: both;"></div>
 </div>
+<div style="clear: both"></div>
+</div>
+
+
