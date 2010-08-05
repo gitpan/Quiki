@@ -8,11 +8,12 @@ use Quiki::Formatter;
 use Quiki::Meta;
 use Quiki::Users;
 use Quiki::Pages;
+use Quiki::Attachments;
 
 use CGI qw/:standard *div/;
 use CGI::Session;
 use HTML::Template::Pro;
-use File::MMagic;
+
 use File::Slurp 'slurp';
 use Pod::Html;
 
@@ -25,11 +26,11 @@ Quiki - A lightweight Wiki in Perl
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 
 =head1 SYNOPSIS
@@ -50,7 +51,6 @@ Creates a new Quiki object.
 Runs the Quiki.
 
 =cut
-
 
 sub new {
     my ($class, %args) = @_;
@@ -73,6 +73,12 @@ sub new {
     return bless $self, $class;
 }
 
+## Sets cookie msg value
+sub _msg {
+    my ($self, $msg) = @_;
+    $self->{session}->param(msg => $msg);
+}
+
 sub run {
     my $self = shift;
 
@@ -92,21 +98,16 @@ sub run {
 
     if ($action eq 'update_perms') {
         my $username = param('edit_user');
-        if (param("admin_action") eq "Delete") {
-            if ($username eq "admin") {
-                $self->{session}->param('msg', "Admin account can not be deleted.");
-            } else {
+        if ($username eq "admin") {
+            $self->_msg("Admin account can not be changed.");
+        } else {
+            if (param("admin_action") eq "Delete") {
                 Quiki::Users->delete($username);
-                $self->{session}->param('msg', "User '$username' deleted.");
+                $self->_msg("User '$username' deleted.");
             }
-        }
-        if (param("admin_action") eq "Save") {
-            my $perm = param("perms");
-            if ($username eq "admin") {
-                $self->{session}->param('msg', "Admin account righs can not be changed.");
-            } else {
-                Quiki::Users->update($username, perm_group => $perm);
-                $self->{session}->param('msg', "Permission rights changed for user '$username'.");
+            if (param("admin_action") eq "Save") {
+                Quiki::Users->update($username, perm_group => param("perms"));
+                $self->_msg("Permission rights changed for user '$username'.");
             }
         }
         $action = 'admin_page';
@@ -114,7 +115,7 @@ sub run {
 
     if ($action eq 'save_profile' && param('submit') =~ /^Save/) {
         if (param("new_password1") && (param("new_password1") ne param("new_password2"))) {
-            $self->{session}->param('msg', "Passwords do not match. Try again!");
+            $self->_msg("Passwords do not match. Try again!");
             $action = 'profile_page';
         }
         else {
@@ -122,34 +123,28 @@ sub run {
             $data{password} = param("new_password1") if param("new_password1");
             $data{email}    = param("email")         if param("email");
             Quiki::Users->update($self->{session}->param("username"), %data);
-            $self->{session}->param('msg', "Profile Saved.");
+            $self->_msg("Profile Saved.");
         }
     }
 
     # XXX
     if ($action eq "upload") {
-        my $count = 0;
-        for (1..3) {
-            if (param("filename$_") && param("name$_")) {
-                my $id = param("name$_");
-                my $path = "data/attach/$node";
-                -f $path or (mkdir $path and chown 0777, $path);
-                open OUT, ">", "$path/$id" or die "Can't create out file: $!";
-                my $filename = param("filename$_");
-                my ($buffer, $bytesread);
-                while ($bytesread = read($filename, $buffer, 1024)) {
-                    print OUT $buffer
-                }
+        my $i = 1;
+        while (param("filename$i") && param("name$i")) {
+            # XXX - Move all this shit to Quiki::Attachments
+            my $id = param("name$i");
+            my $path = "data/attach/$node";
+            -f $path or (mkdir $path and chown 0777, $path);
+            Quiki::Attachments->save_attach("filename$i", "$path/$id");
+            if (param("description$i")) {
+                open OUT, ">", "$path/_desc_$id" or die "Can't create out file: $!";
+                print OUT param("description$i");
                 close OUT;
-                $count++;
-                if (param("description$_")) {
-                    open OUT, ">", "$path/_desc_$id" or die "Can't create out file: $!";
-                    print OUT param("description$_");
-                    close OUT;
-                }
             }
+            ++$i;
         }
-        $self->{session}->param('msg', "$count file(s) uploaded.");
+        --$i;
+        $self->_msg("$i file(s) uploaded.");
     }
 
     # XXX
@@ -158,19 +153,16 @@ sub run {
         my $email    = param('email')    || '';
         if ($username and $email and $email =~ m/\@/) { # XXX -- fix regexp :D
             if (Quiki::Users->exists($username)) {
-                $self->{session}->param('msg',
-                                        "User name already in use. Please try again!");
+                $self->_msg("User name already in use. Please try again!");
                 $action = 'register_page';
             }
             else {
                 Quiki::Users->create($self, $username, $email);
-                $self->{session}->param('msg',
-                                        "You are registered! You should receive an e-mail with your password soon.");
+                $self->_msg("You are registered! You should receive an e-mail with your password soon.");
             }
         }
         else {
-            $self->{session}->param('msg',
-                                    "Sign up failed! Perhaps you forgot to fill in the form?");
+            $self->_msg("Sign up failed! Perhaps you forgot to fill in the form?");
             $action = 'register_page';
         }
     }
@@ -182,10 +174,10 @@ sub run {
         if ($username and $password and Quiki::Users->auth($username,$password)) {
             $self->{session}->param('authenticated',1) and
               $self->{session}->param('username',$username) and
-                $self->{session}->param('msg',"Login successfull! Welcome $username!");
+                $self->_msg("Login successfull! Welcome $username!");
         }
         else {
-            $self->{session}->param('msg',"Login failed!");
+            $self->_msg("Login failed!");
         }
     }
 
@@ -194,19 +186,19 @@ sub run {
         $self->{session}->param('authenticated') and
           $self->{session}->param('authenticated',0) and
             $self->{session}->param('username','') and
-              $self->{session}->param('msg','Logout successfull!');
+              $self->_msg('Logout successfull!');
     }
 
     # XXX
     ($action eq 'create') and (-f "data/content/$node") and ($action = '');
     if( ($action eq 'create') or !-f "data/content/$node") {
         Quiki::Pages->check_in($self, $node, "Edit me!");
-	$self->{session}->param('msg',"New node \"$node\" created.");
+	$self->_msg("New node \"$node\" created.");
     }
 
     if ($action eq "edit" && Quiki::Pages->locked($node, $self->{sid})) {
         $action = "";
-        $self->{session}->param('msg',"Sorry but someone else is currently editing this node!");
+        $self->_msg("Sorry but someone else is currently editing this node!");
     } else {
         Quiki::Pages->lock($node, $self->{sid});
     }
@@ -217,9 +209,9 @@ sub run {
             my $text = param('text') // '';
             Quiki::Pages->check_in($self, $node, $text);
             Quiki::Pages->unlock($node);
-            $self->{session}->param('msg',"Content for \"$node\" updated.");
+            $self->_msg("Content for \"$node\" updated.");
         } else {
-            $self->{session}->param('msg',"You took too much time! You lost your lock.");
+            $self->_msg("You took too much time! You lost your lock.");
         }
     }
 
@@ -229,7 +221,7 @@ sub run {
 	# sanity check revision number
 	if (!($self->{rev} =~ m/\d+/) || $self->{rev}<0 || $self->{rev}>$self->{meta}{rev}) {
     	$self->{rev} = $self->{meta}{rev};
-		$self->{session}->param('msg','Revision requested not found.');
+		$self->_msg('Revision requested not found.');
 	}
     if ($action eq 'rollback') {
         $content = Quiki::Pages->check_out($self,$node,$self->{rev});
@@ -297,49 +289,18 @@ sub run {
     }
 
     if ($action eq 'edit') { # && 
-#        ($preview || !Quiki::Pages->locked($node, $self->{sid}))) {
         if ($preview) {
             my $text = param('text') // '';
             $template->param(CONTENT=>Quiki::Formatter::format($self, $text));
-            $template->param(TEXT=>$text);
+            $template->param(TEXT => $text);
         }
         else {
-            $template->param(TEXT=>$content);
+            $template->param(TEXT => $content);
         }
 
-        if (-d "data/attach/$node") {
-            my @attachs;
-            opendir DIR, "data/attach/$node";
-            my $mm = new File::MMagic;
-            my %desc;
-            for my $f (sort { lc($a) cmp lc($b)  } readdir(DIR)) {
-                next if $f =~ /^\.\.?$/;
-                my $filename = "data/attach/$node/$f";
-                if ($f =~ m!_desc_(.*)!) { $desc{$1} = slurp $filename }
-                else {
-                    ## XXX - TODO - Put this elsewhere
-                    my $mime = $mm->checktype_filename( $filename );
-                    my $mimeimg;
-                    given ($mime) {
-                        when (/image/) { $mimeimg = "mime_image.png"   }
-                        when (/pdf/)   { $mimeimg = "mime_pdf.png"     }
-                        when (/zip/)   { $mimeimg = "mime_zip.png"     }
-                        default        { $mimeimg = "mime_default.png" }
-                    }
-                    push @attachs, { ID      => $f,
-                                     MIME    => $mime,
-                                     SIZE    => sprintf("%.0f",((stat($filename))[7] / 1024)),
-                                     MIMEIMG => $mimeimg };
-                }
-            }
-            for (@attachs) {
-                $_->{DESC} = $desc{$_->{ID}}
-            }
-            $template->param(ATTACHS => \@attachs);
-        }
+        $template->param(ATTACHS => Quiki::Attachments->list($node)) if -d "data/attach/$node";
     }
     elsif ($action eq 'history') {
-
         my @revs;
         for (my $i=$self->{meta}{rev} ; $i>0 ; $i--) {
             my $entry = { VERSION => $i };
@@ -383,10 +344,10 @@ sub run {
     elsif ($action eq 'diff') {
         my $source = param('source') || 1;
         my $target = param('target') || 1;
-        $template->param(CONTENT=>Quiki::Pages->calc_diff($self,$node,$source,$target));
+        $template->param(CONTENT => Quiki::Pages->calc_diff($self,$node,$source,$target));
     }
     else {
-        $template->param(CONTENT=>Quiki::Formatter::format($self, $content));
+        $template->param(CONTENT => Quiki::Formatter::format($self, $content));
     }
 
 
@@ -416,14 +377,16 @@ sub run {
     }
 
     if ($self->{session}->param('msg')) {
-        $template->param(MSG=>$self->{session}->param('msg'));
-        $self->{session}->param('msg','');
+        $template->param(MSG => $self->{session}->param('msg'));
+        $self->_msg('');
     }
 
     # save meta data
     Quiki::Meta::set($node, $self->{meta});
     $template->output(print_to => \*STDOUT);
 }
+
+
 
 =head1 QUIKI CONFIGURATION FILE
 
