@@ -3,7 +3,7 @@ MANIFEST
 Makefile.PL
 README
 lib/Quiki.pm
-lib/Quiki/Formatter.pm
+lib/Quiki/Formatter/HTML.pm
 t/00-load.t
 t/01-formatter.t
 t/02-meta.t
@@ -77,4 +77,5 @@ site/images/revision.png
 site/images/button_left.png 
 site/images/button_right.png
 site/themes/default/title.tmpl
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

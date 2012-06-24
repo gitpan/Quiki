@@ -1,43 +1,43 @@
---- #YAML:1.0
-name:               Quiki
-version:            0.11
-abstract:           A lightweight Wiki in Perl
+---
+abstract: 'A lightweight Wiki in Perl'
 author:
-    - Alberto Simoes and Nuno Carvalho <ambs@cpan.org and smash@cpan.org>
-license:            perl
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
+  - 'Alberto Simoes and Nuno Carvalho <ambs@cpan.org and smash@cpan.org>'
 build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    CGI:                  0
-    CGI::Session:         0
-    DBD::SQLite:          0
-    DBI:                  0
-    Digest::MD5:          0
-    Email::Sender:        0
-    Email::Simple::Creator:  0
-    File::MMagic:         0
-    File::Path:           2.08
-    File::Slurp:          0
-    Gravatar::URL:        0
-    HTML::Template::Pro:  0.90
-    MIME::Base64:         0
-    Pod::Simple:          0
-    Regexp::Common:       2.122
-    Test::CheckManifest:  0
-    Test::More:           0
-    Text::Diff:           0
-    Text::Password::Pronounceable:  0.28
-    Text::Patch:          0
-    URI::Escape:          0
-    YAML::Any:            0
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.56
+  ExtUtils::MakeMaker: 0
+configure_requires:
+  ExtUtils::MakeMaker: 0
+dynamic_config: 1
+generated_by: 'ExtUtils::MakeMaker version 6.62, CPAN::Meta::Converter version 2.120921'
+license: perl
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Quiki
+no_index:
+  directory:
+    - t
+    - inc
+requires:
+  CGI: 0
+  CGI::Session: 0
+  DBD::SQLite: 0
+  DBI: 0
+  Digest::MD5: 0
+  Email::Sender: 0
+  Email::Simple::Creator: 0
+  File::MMagic: 0
+  File::Path: 2.08
+  File::Slurp: 0
+  Gravatar::URL: 0
+  HTML::Template::Pro: 0.90
+  MIME::Base64: 0
+  Pod::Simple: 0
+  Regexp::Common: 2.122
+  Test::CheckManifest: 0
+  Test::More: 0
+  Text::Diff: 0
+  Text::Password::Pronounceable: 0.28
+  Text::Patch: 0
+  URI::Escape: 0
+  YAML::Any: 0
+version: 0.12
